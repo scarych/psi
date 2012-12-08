@@ -15,7 +15,7 @@ class PSI_Mail extends PSI_Core {
      * @return PSI_Mail
      */
     static public function create() {
-        return call_user_func_array(parent::$_binds['create'], array_merge(func_get_args(), array(__CLASS__)));
+        return new self();
     }
 
     public function __construct() {
@@ -30,7 +30,7 @@ class PSI_Mail extends PSI_Core {
             'files'=>array(),
         );
         $this->_headers = array();
-        $this->_html = false;
+        $this->_html = null;
         $this->_boundary = null;
     }
 
@@ -268,11 +268,12 @@ class PSI_Mail extends PSI_Core {
 
 }
 
-return function ($from = null, $groups=null, $encoding = null) {
+return function () {
+    list($Core,  $groups, $from, $encoding) =  tail(func_get_args(), null, null, null, null);
     if ($from) PSI_Mail::$config['from'] = $from;
     if ($groups) PSI_Mail::$config['groups'] = $groups;
     if ($encoding) PSI_Mail::$config['encoding'] = $encoding;
-    return null;
+    return $Core;
 }
     ;
 

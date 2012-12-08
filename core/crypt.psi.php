@@ -128,10 +128,12 @@ class PSI_Crypt extends PSI_Core {
     }
 }
 
-return function($salt=null, $method=null) {
+/* а тут пускалка */
+return function() {
+    list($Core, $salt, $method) = tail(func_get_args(), null, null, null);
     if ($salt) { PSI_Crypt::$config['salt'] = $salt; }
     if ($method) { PSI_Crypt::$config['method'] = $method; }
-    return null;
+    return $Core;
 }
 
 ?>

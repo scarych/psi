@@ -5,12 +5,17 @@ class PSI_FS extends PSI_Core {
 
     static public $config = array('root'=>'/.');
 
+    static protected $_one;
     /**
      * @static
      * @return PSI_FS
      */
+
     static public function one(){
-        return call_user_func_array(parent::$_binds['one'], array_merge(func_get_args(), array(__CLASS__)));
+        if (!isset(static::$_one)) {
+            static::$_one = new self();
+        }
+        return static::$_one;
     }
 
     static public function dir($path) {
@@ -478,11 +483,11 @@ class PSI_FS extends PSI_Core {
  */
 
 /* а тут пускалка */
-return function($root=null) {
+return function($root=null, PSI_Core $Core) {
     if ($root) PSI_FS::$config['root'] = $root;
     //-- устанавливаем корневую директорию
     //-- верну на всякий случай объект, авось пригодится ;)
-    return null;
+    return $Core;
 }
 
 ?>

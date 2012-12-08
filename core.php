@@ -9,17 +9,41 @@ function psi($arguments, $callback) {
 class PSI_Core extends PSI {
     static protected $_binds = array();
 
-    final public function quants($object = null) {
-        return $this->_quants($object ? $object : $this);
+    private $_core = false;
+
+    public function __construct() {
+        $this->_core = (get_called_class() === __CLASS__) ; //--
+        parent::__construct(array_pop(func_get_args()));
     }
 
-    //-- возвращает массив квантов
-    protected function _quants($object) {
-        $reflect = new ReflectionObject($object);
-        $quants = $reflect->getProperty('_quants');
-        $quants->setAccessible(true);
-        return ($quants->getValue($object));
+
+    public function __call($function, $arguments=array()) {
+        if ($this->_core) {                                         //-- если мы находимся в ядре
+            if (!count($this->_quants)) {                           //-- то проверим, что у нас с состоянием квантов
+                if ($handle = opendir( $core = $this . '/core')) {  //-- и определим их
+                    while ($file = readdir($handle)) {              //-- как вызов функций, возвращаемых файлами с передачей аргументов
+                        if (strstr($file, 'psi')) {
+                            $name = array_shift(explode('.', $file));
+                            $this->$name = function() use ($core, $file) {
+                                static $_module; if (!$_module) $_module = include $core . '/' . $file;
+                                call_user_func_array($_module, func_get_args());
+                            };
+                        }
+                    }
+                }
+            }
+            if (isset($this->_quants[$function])) {                 //-- если определен вызов
+                parent::__call($function, $arguments);              //-- то исполним его
+            } else {
+                                                                    //-- иначе возврат ошибки
+            }
+            return $this;                                           //-- и вернем ядро для дальнейших процедур
+        } else {                                                    //-- иначе возвращаем как есть
+            return parent::__call($function, $arguments);
+        }
     }
+
+
 
     //-- синглтон для цельного ядра (включая стандартные функции, возможно следует его назвать standart)
     static public function init ($init=null) {
@@ -32,7 +56,7 @@ class PSI_Core extends PSI {
                 return $reflect->newInstanceArgs($args);
             });
             //-- синглтон
-            PSI_Core::one(function() use ($_singletones){
+            PSI_Core::one(function() use (&$_singletones){
                 list($class, $args) = tail(func_get_args(), __CLASS__);
                 if (!isset($_singletones[$class])) {
                     $reflect = new ReflectionClass($class);
@@ -40,6 +64,7 @@ class PSI_Core extends PSI {
                 }
                 return $_singletones[$class];
             });
+
             //-- отладочный класс
             PSI_Core::debug(function() {
                 list($class, $args) = tail(func_get_args(), __CLASS__);
@@ -61,12 +86,17 @@ class PSI_Core extends PSI {
                     })
                     ;
             });
-            $_core = PSI::core($init);
+            $_core = new PSI(__DIR__);
         }
-        return $_core;
+        return call_user_func_array($init, array($_core));
     }
 }
 
+return function($init = null) {
+    return call_user_func_array($init, array(new PSI_Core(__DIR__)));
+};
+
+/*
 PSI::core(function() {
     static $_defined = false;
     list($class, $args) = tail(func_get_args(), 'PSI_Core');
@@ -96,5 +126,5 @@ PSI::core(function() {
     $reflect = new ReflectionClass('PSI_Core');
     return $reflect->newInstanceArgs($args);
 });
-
+*/
 ?>

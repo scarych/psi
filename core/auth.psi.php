@@ -1,6 +1,9 @@
 <?php
 
+/*
+Авторизация мне нужна, но чуть-чуть позже.
 
+ */
 
 return function ($params = array() ) {
     /*
@@ -14,7 +17,6 @@ return function ($params = array() ) {
         )
     )
      */
-
 }
 
 ?>
