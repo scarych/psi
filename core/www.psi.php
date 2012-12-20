@@ -99,8 +99,6 @@ class PSI_Www extends PSI_Core {
             //-- вообще тут надо возвращать что-то типа $this->process($class->_atom)
             if (count($args)>1) { //-- если пришли аргументы, то войдем в собственное погружение и и обработаем их
                 //-- вот этот deep должен повлиять на то, что вернется в следующем __toString для вызова
-
-                if (@$GLOBALS['xxx']) pr (count($args), $args[2]);
                 return $this->_deep($args, $class); //-- $deep - это то, что вернется сейчас в __toString
             } else { //-- иначе просто вернем объект
                 if ($argument = array_pop($args)) {

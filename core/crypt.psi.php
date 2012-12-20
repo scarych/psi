@@ -130,7 +130,8 @@ class PSI_Crypt extends PSI_Core {
 
 /* а тут пускалка */
 return function() {
-    list($Core, $salt, $method) = tail(func_get_args(), null, null, null);
+    list($Core, $args) = tail(func_get_args(), null);
+    list ($salt, $method) = args($args, null, null);
     if ($salt) { PSI_Crypt::$config['salt'] = $salt; }
     if ($method) { PSI_Crypt::$config['method'] = $method; }
     return $Core;

@@ -86,9 +86,9 @@ class PSI_Shell extends PSI_Core {
         }
     }
 
-    public function extract() {
+    public function extract($delimetr = 'AND') {
         //-- заполняет
-        $this->_result = $this->_db->db($this->_psi->query($this, null, null));
+        $this->_result = $this->delimetr($delimetr)->_db->db($this->_psi->query($this, null, null));
         $this->_count = $this->_result->rowCount();
         $this->_watch = new PSI_Watch($this->_result, $this);
         return $this;
@@ -133,7 +133,6 @@ class PSI_Shell extends PSI_Core {
                     Так я экономлю "флопсы" на базе данных
                     */
 
-
                     if (isset($this->_data[$current])) { //-- тут update или delete с подстановкой ключа
                         $query = $this->_psi->query($this, $argument, ($this->_key
                             ? (is_array($this->_key)
@@ -141,10 +140,13 @@ class PSI_Shell extends PSI_Core {
                                 : array($this->_key=>$this->_data[$current][$this->_key]))
                             : $this->_data[$current]));
                     } else { //-- тут insert
-
-                        $query = $this->_psi->query($this, array_merge($this->default($this->_key), $argument), null);
+                        if (count($argument)) {
+                            $query = $this->_psi->query($this, array_merge($this->default($this->_key), $argument), null);
+                        } else {
+                            $query = $this->_psi->query($this, $argument, $this->param(), null); //-- иначе удаление по ключу
+                        }
                     }
-                    debug ($query);
+                    debug($query);
                     $result = $this->_db->db($query);
                     if (self::$_transaction = $result->rowCount()) {
                         if (!isset($this->_data[$current])) {
@@ -576,6 +578,20 @@ class PSI_Shell extends PSI_Core {
     //-- приведение к валидному тексту
     public function boolean($values, $sign=false, $quotes=true) {
         return $this->integer($values, $sign, $quotes);
+        if (!is_array($values)) $values = array($values);
+        $return = array();
+        array_map(function($value) use ($sign, &$return) {
+            $parse = ($value && is_string($value)
+                ? ( $sign
+                    ? ( array('-enum'=>(empty($value)?0:1)))
+                    : ( is_null($value) ? 'NULL' : (empty($value)?0:1) )
+                )
+                : ($sign ? array('-enum'=>intval((string) $value)) : (is_null($value) ? 'NULL' : (empty($value)?0:1)) )
+            )
+            ;
+            ($sign ? $return = array_merge_recursive($return, $parse) : $return[] = $parse);
+        }, $values );
+        return $return;
     }
     //-- приведение к валидному тексту
     public function timestamp($values, $sign=false, $quotes=true) {
@@ -805,7 +821,7 @@ class PSI_Shell extends PSI_Core {
     __get будет работать по следующему принципу
     Если задана функция по текущему параметру, то возвращется она
     */
-    public function __get($name) {
+    public function &__get($name) {
             return parent::__get($name);
     }
     /*
@@ -915,7 +931,8 @@ class PSI_DBAttrs extends PSI_Core {
     public function __call($function, $arguments) {
         if (!isset($this->_quants[$function])) {
             $this->{$function} = new PSI(function () use ($function) {
-                list($psi, $attrs, $arguments) = tail(func_get_args(), null, null, null);
+                list($psi, $args) = tail(func_get_args(), null);
+                list($attrs, $arguments) = tail($args, null, null);
                 if ($arguments && is_callable($arguments)) {
                     $psi->filter = $arguments;
                     return $attrs;

@@ -269,7 +269,8 @@ class PSI_Mail extends PSI_Core {
 }
 
 return function () {
-    list($Core,  $groups, $from, $encoding) =  tail(func_get_args(), null, null, null, null);
+    list($Core,  $args) =  tail(func_get_args(), null);
+    list($from, $groups, $encoding) =  tail($args, null, null, null);
     if ($from) PSI_Mail::$config['from'] = $from;
     if ($groups) PSI_Mail::$config['groups'] = $groups;
     if ($encoding) PSI_Mail::$config['encoding'] = $encoding;

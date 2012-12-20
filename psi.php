@@ -34,8 +34,7 @@ function push() {
     return $array;
 }
 
-function tail()
-{
+function tail() {
     $args = func_get_args();
     $ret = array();
     list($src, $defaults) = array(array_reverse($args[0]), array_slice($args, 1));
@@ -107,7 +106,7 @@ class PSI {
 
     public function &__get($name) {
         //-- что должно происходить, если вызов идет из квантового состояния?
-        if (! isset($this->_quants[$name])) {
+        if (!isset($this->_quants[$name])) {
             $this->_quants[$name] = null; //-- вот это очень важная фишечка, она позволяет делать реверсивные захваты при инициации
         }
         return $this->_quants[$name];
