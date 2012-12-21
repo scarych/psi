@@ -212,8 +212,6 @@ class PSI_Env extends PSI_Core {
         //-- что делает повторный вызов? сейчас разберемся, сначала сделаем первый
 
          */
-        //pr ($arguments);
-//        pr (debug_backtrace()) ;
 
 
         return call_user_func_array($this, array($name, $arguments[0]))//->{$name}
