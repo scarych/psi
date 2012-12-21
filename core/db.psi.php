@@ -37,7 +37,6 @@ class PSI_Shell extends PSI_Core {
         $this->_readonly = ($type===PSI_DB::_TYPE_SQL_); //-- закроем от записи то, что сделано запросом
         $this->_params = &$this->_all_params; //-- зациклим параметры
         $this->_psi = $Psi($Psi);
-        //pr ($Psi($Psi));
 
         $this
             ->or(
@@ -71,8 +70,11 @@ class PSI_Shell extends PSI_Core {
         ;
     }
 
-    public function count() {
-        return $this->_count;
+    public function count($pager = false) {
+        return $pager
+            ? $this->_db->db($this->_psi->query($this, false, null))->fetchColumn(0)
+            : $this->_count
+            ;
     }
 
     protected  $_delimetr = 'AND';
@@ -86,9 +88,9 @@ class PSI_Shell extends PSI_Core {
         }
     }
 
-    public function extract($delimetr = 'AND') {
+    public function extract($delimetr = null) {
         //-- заполняет
-        $this->_result = $this->delimetr($delimetr)->_db->db($this->_psi->query($this, null, null));
+        $this->_result = $this->delimetr($delimetr ? $delimetr : $this->_delimetr)->_db->db($this->_psi->query($this, null, null));
         $this->_count = $this->_result->rowCount();
         $this->_watch = new PSI_Watch($this->_result, $this);
         return $this;
@@ -209,158 +211,7 @@ class PSI_Shell extends PSI_Core {
             return call_user_func_array($this->_watch, array($this));
             // return $this->_psi;
         }
-        //return 'invoke ok';
-        //-- __invoke для $Shell дает две возможности
-        //-- обратиться непосредственно к PSI в том состоянии, в которое он себя хранит
-        //-- (то есть будет всего один атом PSI_Watch, который будет перемещаться по матрице индексов
-        //-- обратиться к мета-статусу, в котором находится
-        //-- мета-статус - это формируемые в самом начале вызовы struct, fields и так далее
-        //-- выбор между тем, что вызывать даст следующее
-
-        //-- доступ к атомам будет даваться через
-        //-- ->forward(), ->backward()
-        //-- если будет параметр (5), то это считается индексом для перехода, если там ставится строка, то считается параметром для ключа
-        //-- да, вызов с параметром отправляется к мета-статусу, а с параметром - пытается найти индекс
-        //-- запрос хранится в атоме, другое дело, что этот атом можно сохранить и использовать по назначению
-        //-- по большому счету каждый индекс сдвига и позволяет перемещаться по нему
-        //-- ща ща решим все
-
-
-
-        //-- такс, что мы имеем с гуся?
-
-        //-- а с гуся мы имеем такие примерно варианты использования:
-        /*
-        PSI::mylsq()->table(
-            function (PSI_Shell $shell) {
-                $shell
-                    ->param('is_blocked', 0)
-                    ->limit(10)
-                ;
-                return $shell(intval($_GET['shift'])); //-- вот что вернется тут? и как с этим можно будет жить?
-                //-- а тут вернется сдвинутый на нужную позицию атом, который будет доступен для перебора
-                //-- таким образом получаем следующий алгоритм
-                {while $atom = $Shell->forward()}
-                    //-- таким образом тут получается доступ к атому
-                    {$atom->data()}
-                    //-- все заебок, двигаемся дальше
-                {/while}
-            }
-        )
-
-        */
-
-        //-- И ВОТ ТУТ Я ПРИДУМАЛ ТРАНЗАКЦИИ!!!1
-
-        /*
-         Все складывается!
-            Шелл пишется так.
-            Есть бегающий по индикации курсор.
-            Есть окошко в этот курсор с обвешанными функциями.
-            Вызовы определяются последовательностью их включения
-            То есть технически они способны работать таким образом. На примере NDAB, например
-
-            PSI::mysql()->realty(function (PSI_Shell $Shell) {
-                $Shell()->object_owner(function($value) {
-                    $Owners = Root::one()->lots()->owners(); (а там возвращается Owners, которые при вызове его в строке дает целую таблицу внутри, но мы можем его использовать
-                    return $Owners->source();
-                })
-            }
-
-
-
-            Это все будет делаться затем, чтобы в шаблоне написать
-            $Owners
-         */
-
-        /*
-        В зависимости от того, что будет поставляться $complete или $active будет идти обращение к вызову или к операции
-
-
-       К примеру: Нужно в качестве параметров получить список полей, тогда $Deals()->fields() вернет состояния для этой таблицы, в этом случае оболочка будет активна
-
-       Если оболочка будет закрыта, то обращение $Deals() вернет что?
-       И как этим следует будет обращаться?
-
-       Например:
-       Tpl()->Data(DB()->sometable());
-
-       Теперь при вызове $Data() будет происходить сдвиг вперед, либо назад и возвращаться идентификатор
-       То есть можно будет делать строку
-       {while $Data->forward()}
-
-           {$Data()->field()} //-- вот так мне и надо действовать
-           {$Data(id)->field()}
-
-
-           //-- в этом случае я оставляю право использования
-
-       {/while}
-
-        */
-
-        /*
-         При вызове через () собираются параметры те, что в $shell()->fields() + те, что $shell->params() и возвращается $Shell, который потом можно использовать как ->forward()
-         При вызове через (ID) собирается те, что в params(), и возвращается PSI_Watch
-         При вызове через (array(...)) пытается собрать данные в кучу для записи, и возвращает PSI_Watch с подготовленными значениями, для ограничения выборки использует param(), для ограничения записи использует $shell()->fields()
-         При вызове через (null) или прочие пустые значения, пытается собрать данные в кучу, используется их эквивалент как ключ для запуска, и возвращется DBAtom
-         */
-
-
-        /*
-        Теперь, как будет работать DBAtom $Atom при его обращении
-        1. __call запускается, передавая текущее значение
-        2. __set и __get работают аналогично
-
-        3. $Atom() должен возвращать к шеллу. Только нахуя? А чтобы иметь возможность поменять функцию или выбрать рекурсивные значения
-           Например, $Atom(array('gallery_pid'=>$Atom->id())) создаст новую оболочку с рекурсивным вызовом для текущий
-           В принципе, пригодится для обкатки страниц. По большому счету склонирует текущий Shell и вернет его $Shell, который можно будет пробежать, который можно будет как-то применить.
-           То есть даже тут можно будет вызвать $Shell($_POST['data'])
-           Тоже самое для прочих текстовых параметров.
-
-           Для цифровых параметров, только поиск будет среди индексов текущего блока, и будет возвращен DBAtom и его $atom() и возвратом на текущее значение (без фиксации и привязки, просто по номеру), который я смогу применить как прочий атом, потому что его поля уже будут подготовлены для запуска
-           Просто $Atom() должен вернуть, например, массив своих значений. Даже не массив, а то, что я могу интерпретировать в массив. Ну да, массив из интепретированных квантов. Это будет крутотенюшка!
-
-           А __toString - то, что считается у него ключем.
-           Вот так будет то, что надо!
-        */
-
-        /*
-        Итак, еще раз. Как извлекать данные из оболочек?
-        tpl()->Data(Mysql()->table(5))
-        Возвращается Atom
-        И теперь в шаблоне к нему можно обращаться как $Data->value()
-        Непосредственно $Data() - будет возвращать родительский шелл.
-
-        $Data(array()) будет пытаться сохранить данные в текущей позиции, и переставить его значения
-        (string) $Data вернет текущий ID записи
-        $Data(string) или $Data(int) делать что? Пытаться извлечь новый атом по ключу? Подумать. Скорее всего, да.
-
-
-        tpl()->Data(Mysql()->table()),
-        Возвращается Shell
-        И теперь в шаблоне к нему можно будет обращаться как $atom = $Data->forward() и читать $atom
-        $Data->fields() можно будет использовать как ограничитель структуры
-        $Data() получает доступ к текущей структуре. Всегда!
-
-        $Data(int) возвращает атом по заданной позиции
-        $Data(string) ищет атом по заданному ключу
-        $Data(array()) делает дополнительную выборку среди имеющейся, в которой ищет значения и возвращает Shell.
-
-        По сути должно быть можно использовать
-        //-- при этом в существующем параметрическом облаке все должно быть четко и не вызывать повторов и разрывов.
-        //-- это я сделаю в процессе написания кода
-        {while $atom2 = $Data(array('is_blocked'=>0))->forward()}
-
-            $atom2;
-
-        {/while}
-
-
-        Что будет давать обращение через функцию?
-
-        */
-
+        return $this;
     }
 
     protected $_key = null;
@@ -723,7 +574,10 @@ class PSI_Shell extends PSI_Core {
 
     public function limit($from_or_limit=null, $to = null) {
         if (is_null($from_or_limit)) {
-            return ($this->_limit ? array($this->_cursor, $this->_limit) : array());
+            return (
+                $to ? ($this->_limit ? array($this->_cursor, $this->_limit) : array()) : ($this->_limit)
+                )
+            ;
         } else {
             if (is_null($to)) {
                 $this->_limit = $from_or_limit;
@@ -753,16 +607,17 @@ class PSI_Shell extends PSI_Core {
     }
 
     public function forward($limit = -1) { //-- -1 eq all
-        static $active=false, $iteration=0;
+        static $active=false, $iteration=0, $cursor = 0;
         if (!$active && !$iteration) { //-- если не заданы активность и итерации, то задаем количество шагов
             $iteration = $limit;
             $active = true;
         }
-        if ($iteration && ($this->_cursor < $this->_count)) {
+        if ($iteration && ($cursor < $this->_count)) {
             $iteration-- ; //-- уменьшим итерацию на единицу
-            return call_user_func_array($this(), array($this->_cursor++));
+            return call_user_func_array($this(), array($cursor++));
         } else {
             $iteration = 0;
+            $cursor = 0;
             $active = false;
             return $active;
         }
@@ -1124,7 +979,6 @@ class PSI_DB extends PSI_Core {
                         //-- в зависимости от того, что пришло в $src
                         //-- nul
 
-
                         $generator = function($params = array(), $fields, $foo,  $prefix = '', $empty = true, $delimetr = 'AND') use ($Shell) {
                             $return = array(); if (!is_array($fields)) $fields = $fields();
                             if (!empty($params) && is_array($params)) {
@@ -1144,7 +998,7 @@ class PSI_DB extends PSI_Core {
                                                                     : ' = ' . $value )
                                                         ;
                                                         break;
-                                                    case '>': case '<': case '>=': case '=<': case '<>': case '!=': //-- символы
+                                                    case '&': case '>': case '<': case '>=': case '=<': case '<=': case '<>': case '!=': //-- символы
                                                     if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
                                                         foreach ($value as $v) {
                                                             $return[] = ($field . $key . $v);
@@ -1189,12 +1043,13 @@ class PSI_DB extends PSI_Core {
                         switch (true) {
                             case (empty($new) && empty($current)): //-- запрос на выборку
                                 $where = call_user_func_array($generator, array($Shell->param(), $Shell->fields(), $generator,  '', true, $Shell->delimetr()));
+                                $count = is_bool($new);
                                 return
-                                    ('SELECT * FROM '
+                                    ('SELECT ' . ($count ? 'COUNT(*)' : '*') .' FROM '
                                     . '`'. $Shell->source() . '`'
                                     . ($where ? ' WHERE ' . $where : '')
                                     . (($order = $Shell->order()) ? ' ORDER BY ' . (implode(', ', $order)) : '')
-                                    . (($limit = $Shell->limit()) ? ' LIMIT ' . (implode(', ', $limit)) : '')
+                                    . ($count ? '' : ($limit = $Shell->limit(null, true)) ? ' LIMIT ' . (implode(', ', $limit)) : '')
                                 );
                                 break;
                             case !empty($new) && empty($current): //-- запрос на вставку
