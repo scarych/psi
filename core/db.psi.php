@@ -549,7 +549,7 @@ class PSI_Shell extends PSI_Core {
                     $index = intval((string)$watch);
                     if (isset($data[$index])) {
                         if ($filter = $attrs->filter) {
-                            return call_user_func_array($filter, array($data[$index][$field], $watch));
+                            return call_user_func_array($filter, array($data[$index][$field], $watch, $data[$index]));
                         } else {
                             return $data[$index][$field];
                         }
