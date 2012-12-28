@@ -1,21 +1,29 @@
 <?php
 
-function psi($arguments, $callback) {
-    return new PSI ( function () use ($arguments, $callback) {
-        return call_user_func_array($callback, $arguments);
-    });
-}
+
 
 class PSI_Core extends PSI {
     static protected $_binds = array();
-
     private $_core = false;
 
-    public function __construct() {
-        $this->_core = (get_called_class() === __CLASS__) ; //--
-        parent::__construct(array_pop(func_get_args()));
+    final static public function debug($debug='/tmp/debug.psi.log', $path= __DIR__ ) { //-- запускает ядро в режиме отладки, устанавливает константу, на которую будут опираться
+        if (!defined('_PSI_CORE_DEBUG_')) {
+            define('_PSI_CORE_DEBUG_', $debug);
+            debug('PSI_Core debug mode on');
+        }
+        return new self($path);
     }
 
+    public function __construct($path = __DIR__) {
+        if (!defined('_PSI_CORE_DEBUG_')) define('_PSI_CORE_DEBUG_', 0);
+        $this->_core = (get_called_class() === __CLASS__);
+        parent::__construct($path);
+    }
+
+    final protected function __debug($argument) {
+        debug($argument);
+        return $argument;
+    }
 
     public function __call($function, $arguments=array()) {
         if ($this->_core) {                                         //-- если мы находимся в ядре
@@ -44,7 +52,6 @@ class PSI_Core extends PSI {
     }
 
 
-
     //-- синглтон для цельного ядра (включая стандартные функции, возможно следует его назвать standart)
     static public function init ($init=null) {
         static $_core, $_singletones = array();
@@ -65,27 +72,6 @@ class PSI_Core extends PSI {
                 return $_singletones[$class];
             });
 
-            //-- отладочный класс
-            PSI_Core::debug(function() {
-                list($class, $args) = tail(func_get_args(), __CLASS__);
-
-                return
-                    call_user_func_array(array($class, 'create'), $args)
-                        ->pr(function() {
-                        $args = func_get_args();
-                        pr ($args);
-                        list($obj, $foo) = array(array_pop($args), array_pop($args)) ;
-                        call_user_func_array('pr', count($args) ? $args : array($obj));
-                        return $obj;
-                    })
-                        ->dpr(function() {
-                        $args = func_get_args();
-                        list($obj, $foo) = array(array_pop($args), array_pop($args)) ;
-                        call_user_func_array('dpr', count($args) ? $args : array($obj));
-                        return $obj;
-                    })
-                    ;
-            });
             $_core = new PSI(__DIR__);
         }
         return call_user_func_array($init, array($_core));
@@ -96,35 +82,65 @@ return function($init = null) {
     return call_user_func_array($init, array(new PSI_Core(__DIR__)));
 };
 
-/*
-PSI::core(function() {
-    static $_defined = false;
-    list($class, $args) = tail(func_get_args(), 'PSI_Core');
 
-    if (!$_defined) {
-        if ($handle = opendir(__DIR__ . '/core')) {
-            while ($file = readdir($handle)) {
-                if (strstr($file, 'psi')) {
-                    $function = array_shift(explode('.', $file));
-                    PSI_Core::$function(
-                        function () use ($file, $function) {
-                            list($class, $args) = tail(func_get_args(), 'PSI_Core');
-                            //-- вот тут надо как-то узнать, как подключать классы
-                            static $_core;
-                            if (!$_core) {
-                                $_core = include_once __DIR__ . '/core/'. $file;
-                            }
-                            return call_user_func_array($_core, $args);
-                        }
-                    );
-                }
-            }
-        }
-        $_defined = true;
+
+
+/* FUNCTIONS  */
+//-- Date and Time control in light mode :)
+function now($date = null, $format = null, $strf = false) {
+    if (!$date) $date = time();
+    $ret = (is_numeric($date) ? $date : strtotime($date));
+    return (!$format ? $ret : ($strf ? strftime($format, $ret) : date($format, $ret)));
+}
+//--
+function tail() {
+    $args = func_get_args();
+    $ret = array();
+    list($src, $defaults) = array(array_reverse($args[0]), array_slice($args, 1));
+    foreach ($defaults as $k => $v) {
+        $ret[] = (!isset($src[$k]) ? $defaults[$k] : $src[$k]);
     }
+    $ret[] = count($ret) < count($src) ? array_reverse(array_slice($src, count($ret))) : array();
+    return $ret;
+}
 
-    $reflect = new ReflectionClass('PSI_Core');
-    return $reflect->newInstanceArgs($args);
-});
-*/
+function args() {
+    $args = func_get_args();
+    $ret = array();
+    list($src, $defaults) = array($args[0], array_slice($args, 1));
+    foreach ($defaults as $k => $v) {
+        $ret[] = (!isset($src[$k]) ? $defaults[$k] : $src[$k]);
+    }
+    $ret[] = count($ret) < count($src) ? array_slice($src, count($ret)) : array();
+    return $ret;
+}
+
+function _psi($arguments, $callback) {
+    return new PSI ( function () use ($arguments, $callback) {
+        return call_user_func_array($callback, $arguments);
+    });
+}
+
+function psy($PSI, $arguments = array()) {
+    return call_user_func_array($PSI, $arguments);
+}
+
+function debug() {
+    if (_PSI_CORE_DEBUG_) {
+        if ($args = func_get_args()) {
+            foreach ($args as $value)  {
+                file_put_contents(_PSI_CORE_DEBUG_, now('now', 'd.m.Y h:i:s ') . "--\r\n" . (print_r ($value, true) ) . "\r\n", FILE_APPEND );
+            };
+        }
+    }
+}
+
+
+function push() {
+    list ($array, $tail) = args(func_get_args(), array());
+    foreach ($tail as $v) $array[]=$v;
+    return $array;
+}
+
+
 ?>

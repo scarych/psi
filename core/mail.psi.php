@@ -3,7 +3,6 @@
 
 
 
-
 class PSI_Mail extends PSI_Core {
 
     static public $config = array('from'=>'PSI MAILER <mail@psifunction.com>', 'groups'=>array(), 'encoding'=>'utf-8');
@@ -18,7 +17,7 @@ class PSI_Mail extends PSI_Core {
         return new self();
     }
 
-    public function __construct() {
+    public function __construct( ) {
         $this->_params = array(
             'to'=>array(),
             'bcc'=>array(),
@@ -32,6 +31,7 @@ class PSI_Mail extends PSI_Core {
         $this->_headers = array();
         $this->_html = null;
         $this->_boundary = null;
+        parent::__construct(array_pop(func_get_args()));
     }
 
     /**
@@ -174,7 +174,7 @@ class PSI_Mail extends PSI_Core {
         return
             (count($matches)
                 ? array('from'=>$matches[0], 'mail'=>$matches[1])
-                : array('from'=>'', 'mail'=>$input)
+                : array('from'=>$input, 'mail'=>$input)
             );
 
     }
@@ -253,12 +253,12 @@ class PSI_Mail extends PSI_Core {
     }
 
     public function send () {
-        return call_user_func_array('mail', $this->_compile()) ;
+        return call_user_func_array('mail', $this->__debug($this->_compile())) ;
     }
 
     //-- toString добавлен специально, чтобы можно было сохранять отправляемое письмо в виде строки того или иного вида
     public function __toString() {
-        return serialize($this->_compile());
+        return serialize($this($this)->_compile());
     }
 
 

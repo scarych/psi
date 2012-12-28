@@ -1,5 +1,9 @@
 <?php
 
+function PSI_Tpl ($param = null) {
+    return ($param ? new PSI_Tpl($param) : PSI_Tpl::functions());
+}
+
 class PSI_Tpl extends PSI_Core {
     static public $renderer = null;
     static protected
@@ -15,9 +19,8 @@ class PSI_Tpl extends PSI_Core {
     }
 
     public function __toString() {
-        return static::$renderer ? call_user_func_array(static::$renderer, array($this->_psi, $this)) : $this->_psi;
+        return (string) (static::$renderer ? call_user_func_array(static::$renderer, array($this->_ego, $this)) : $this->_ego);
     }
-
 }
 
 return function($render = null, PSI_Core $Core) {

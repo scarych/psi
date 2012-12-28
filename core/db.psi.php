@@ -36,7 +36,7 @@ class PSI_Shell extends PSI_Core {
         $this->_db = &$Db;
         $this->_readonly = ($type===PSI_DB::_TYPE_SQL_); //-- закроем от записи то, что сделано запросом
         $this->_params = &$this->_all_params; //-- зациклим параметры
-        $this->_psi = $Psi($Psi);
+        $this->_ego = $Psi($Psi);
 
         $this
             ->or(
@@ -72,7 +72,7 @@ class PSI_Shell extends PSI_Core {
 
     public function count($pager = false) {
         return $pager
-            ? $this->_db->db($this->_psi->query($this, false, null))->fetchColumn(0)
+            ? $this->_db->db($this->_ego->query($this, false, null, null))->fetchColumn(0)
             : $this->_count
             ;
     }
@@ -90,7 +90,7 @@ class PSI_Shell extends PSI_Core {
 
     public function extract($delimetr = null) {
         //-- заполняет
-        $this->_result = $this->delimetr($delimetr ? $delimetr : $this->_delimetr)->_db->db($this->_psi->query($this, null, null));
+        $this->_result = $this->delimetr($delimetr ? $delimetr : $this->_delimetr)->_db->db($this->_ego->query($this, null, null, null));
         $this->_count = $this->_result->rowCount();
         $this->_watch = new PSI_Watch($this->_result, $this);
         return $this;
@@ -136,16 +136,16 @@ class PSI_Shell extends PSI_Core {
                     */
 
                     if (isset($this->_data[$current])) { //-- тут update или delete с подстановкой ключа
-                        $query = $this->_psi->query($this, $argument, ($this->_key
+                        $query = $this->_ego->query($this, $argument, ($this->_key
                             ? (is_array($this->_key)
                                 ?  call_user_func_array(function($keys, $values) { $return = array(); foreach ($keys as $key) $return[$key]=$values[$key]; return $return; }, array($this->_key, $this->_data[$current]))
                                 : array($this->_key=>$this->_data[$current][$this->_key]))
                             : $this->_data[$current]));
                     } else { //-- тут insert
                         if (count($argument)) {
-                            $query = $this->_psi->query($this, array_merge($this->default($this->_key), $argument), null);
+                            $query = $this->_ego->query($this, array_merge($this->default($this->_key), $argument), null);
                         } else {
-                            $query = $this->_psi->query($this, $argument, $this->param(), null); //-- иначе удаление по ключу
+                            $query = $this->_ego->query($this, $argument, $this->param(), null); //-- иначе удаление по ключу
                         }
                     }
                     debug($query);
@@ -209,7 +209,7 @@ class PSI_Shell extends PSI_Core {
             //pr ($this->_watch);
             //-- если у меня есть прокси, то я могу сделать следующее
             return call_user_func_array($this->_watch, array($this));
-            // return $this->_psi;
+            // return $this->_ego;
         }
         return $this;
     }
@@ -606,20 +606,21 @@ class PSI_Shell extends PSI_Core {
         }
     }
 
+    protected $_iteration = array('active'=>false, 'iteration'=>0, 'cursor'=>0);
+
+
     public function forward($limit = -1) { //-- -1 eq all
-        static $active=false, $iteration=0, $cursor = 0;
-        if (!$active && !$iteration) { //-- если не заданы активность и итерации, то задаем количество шагов
-            $iteration = $limit;
-            $active = true;
+        if (!$this->_iteration['active']  && !$this->_iteration['iteration']) { //-- если не заданы активность и итерации, то задаем количество шагов
+            $this->_iteration['iteration'] = $limit;
+            $this->_iteration['active'] = true;
         }
-        if ($iteration && ($cursor < $this->_count)) {
-            $iteration-- ; //-- уменьшим итерацию на единицу
-            return call_user_func_array($this(), array($cursor++));
+
+        if ($this->_iteration['iteration'] && ($this->_iteration['cursor'] < $this->_count)) {
+            $this->_iteration['iteration']-- ; //-- уменьшим итерацию на единицу
+            return call_user_func_array($this(), array($this->_iteration['cursor']++));
         } else {
-            $iteration = 0;
-            $cursor = 0;
-            $active = false;
-            return $active;
+            $this->_iteration = array('active'=>false, 'iteration'=>0, 'cursor'=>0);
+            return false;
         }
         //-- если лимита нет, то считается по внутреннему
 
@@ -637,7 +638,7 @@ class PSI_Shell extends PSI_Core {
 
     public function fields($filter = null) {
         //-- если тут стоят фильтры, то перегрузим ими текущие вызовы
-        if (!$this->_fields) { $this->_fields =  $this->_psi->fields($this->_source, $this); }
+        if (!$this->_fields) { $this->_fields =  $this->_ego->fields($this->_source, $this); }
         if ($filter) {
             switch (true) {
                 case is_callable($filter):
@@ -645,7 +646,7 @@ class PSI_Shell extends PSI_Core {
                     break;
                 case is_string($filter):
 
-                    //call_user_func_array($filter, array($this->_psi->fields($this->_source, $this)));
+                    //call_user_func_array($filter, array($this->_ego->fields($this->_source, $this)));
                     break;
             }
             return $this;
@@ -655,12 +656,12 @@ class PSI_Shell extends PSI_Core {
     }
 
     public function status() {
-        return $this->_psi->status($this->_source, $this);
+        return $this->_ego->status($this->_source, $this);
     }
 
     //-- возвращает запрос, который был/есть будет сгенерирован для требуемого состояния оболочки (по умолчанию: выборка)
     public function query() {
-        return $this->_psi->query($this, null, null);
+        return $this->_ego->query($this, null, null, null);
     }
 
 
@@ -696,7 +697,7 @@ class PSI_Shell extends PSI_Core {
 
     public function __toString() {
         //-- возврашает то, что считается названием оболочки (идентификатор)
-        return $this->_proxy ? (string) call_user_func_array($this->_proxy, array($this)) : $this->_source;
+        return $this->_dual ? (string) call_user_func_array($this->_dual, array($this)) : $this->_source;
     }
 
 
@@ -801,6 +802,7 @@ class PSI_DBAttrs extends PSI_Core {
                 ->size($size)
                 ->default($default)
                 ->comment($comment)
+                ->extract(function() { /* где-то тут будет оболочка, к которой прикреплены атрибуты */  })
             ;
 //
 //            function() use ($arguments) {
@@ -972,7 +974,7 @@ class PSI_DB extends PSI_Core {
                         //return $Shell->db();
                         //return new PSI_Shell($db->db('SHOW TABLE STATUS LIKE \'' . $table .'\';'), $db);
                     },
-                    'query' => function (PSI_Shell $Shell, $new = array(), $current = array()) {
+                    'query' => function (PSI_Shell $Shell, $new = array(), $current = array(), $select='*') {
                         //-- будет генерировать запрос в контексте правильности порядка полей: фильтрация, экранирование и все-такие прочее :-)
                         //-- по большому счету просто перенесу функции из предыдущего шелла
 
@@ -1045,7 +1047,7 @@ class PSI_DB extends PSI_Core {
                                 $where = call_user_func_array($generator, array($Shell->param(), $Shell->fields(), $generator,  '', true, $Shell->delimetr()));
                                 $count = is_bool($new);
                                 return
-                                    ('SELECT ' . ($count ? 'COUNT(*)' : '*') .' FROM '
+                                    ('SELECT ' . ($count ? 'COUNT(*)' : ($select?$select:'*')) .' FROM '
                                     . '`'. $Shell->source() . '`'
                                     . ($where ? ' WHERE ' . $where : '')
                                     . (($order = $Shell->order()) ? ' ORDER BY ' . (implode(', ', $order)) : '')
