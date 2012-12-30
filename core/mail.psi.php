@@ -230,7 +230,6 @@ class PSI_Mail extends PSI_Core {
     //-- определения
     public function __invoke() {
         if (count($arguments = func_get_args())) {
-            debug($arguments);
             if (($arg = array_shift($arguments)) !== $this) {
                 $this->_dual = $arg;
                 return $this;
