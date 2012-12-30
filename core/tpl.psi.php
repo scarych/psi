@@ -1,33 +1,29 @@
 <?php
-
-function PSI_Tpl ($param = null) {
-    return ($param ? new PSI_Tpl($param) : PSI_Tpl::functions());
-}
-
+//--PSI_Tpl
 class PSI_Tpl extends PSI_Core {
-    static public $renderer = null;
-    static protected
-       $_binds = array()
-        ;
-
-    static public function create($template=null) {
-        return new self($template);
-    }
-
-    static public function functions() {
-        return static::$_binds;
-    }
-
+    //-- перегрузка Связей
+    static public $_binds = array();
+    //-- перегрузка строки
     public function __toString() {
-        return (string) (static::$renderer ? call_user_func_array(static::$renderer, array($this->_ego, $this)) : $this->_ego);
+        return call_user_func_array(static::$_core->tpl, array($this->_ego, $this));
+    }
+    //-- перегрузка вызова функции
+    public function __invoke() {
+        return
+             ($arguments = func_get_args())
+                ? $this->_ego($arguments)
+                : $this->_quants
+            ;
     }
 }
-
-return function($render = null, PSI_Core $Core) {
-    if (!is_null($render)) {
-        PSI_Tpl::$renderer = $render;
-    }
+//-- функция быстрого вызова
+function PSI_Tpl ($param = null) {
+    return ($param ? new PSI_Tpl($param) : PSI_Tpl::$_binds);
+}
+//-- конфигуратор PSI_Tpl в Ядре
+return function($renderer = null, PSI_Core $Core) {
+    $Core->tpl = $renderer;
     return $Core;
 }
-
+;
 ?>

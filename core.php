@@ -1,10 +1,18 @@
 <?php
 
-
-
 class PSI_Core extends PSI {
     static protected $_binds = array();
-    private $_core = false;
+    static protected $_core = null;
+    private $_is_core = false;
+
+    public function __construct($path = __DIR__) {
+        if (!defined('_PSI_CORE_DEBUG_')) define('_PSI_CORE_DEBUG_', 0);
+        $this->_is_core = (get_called_class() === __CLASS__);
+        if ($this->_is_core) {
+            static::$_core = &$this;
+        }
+        parent::__construct($path);
+    }
 
     final static public function debug($debug='/tmp/debug.psi.log', $path= __DIR__ ) { //-- запускает ядро в режиме отладки, устанавливает константу, на которую будут опираться
         if (!defined('_PSI_CORE_DEBUG_')) {
@@ -13,20 +21,14 @@ class PSI_Core extends PSI {
         }
         return new self($path);
     }
-
-    public function __construct($path = __DIR__) {
-        if (!defined('_PSI_CORE_DEBUG_')) define('_PSI_CORE_DEBUG_', 0);
-        $this->_core = (get_called_class() === __CLASS__);
-        parent::__construct($path);
-    }
-
-    final protected function __debug($argument) {
-        debug($argument);
+    //-- и тут еще можно добавить функцию, которая будет вести отладку для вызова: какой класс и при каких обстоятельствах вызвал Рентген
+    //-- Рентген
+    final protected function __xray($argument) {
+        if (_PSI_CORE_DEBUG_) debug($argument);
         return $argument;
     }
-
     public function __call($function, $arguments=array()) {
-        if ($this->_core) {                                         //-- если мы находимся в ядре
+        if ($this->_is_core) {                                         //-- если мы находимся в ядре
             if (!count($this->_quants)) {                           //-- то проверим, что у нас с состоянием квантов
                 if ($handle = opendir( $core = $this . '/core')) {  //-- и определим их
                     while ($file = readdir($handle)) {              //-- как вызов функций, возвращаемых файлами с передачей аргументов
@@ -92,6 +94,7 @@ function now($date = null, $format = null, $strf = false) {
     $ret = (is_numeric($date) ? $date : strtotime($date));
     return (!$format ? $ret : ($strf ? strftime($format, $ret) : date($format, $ret)));
 }
+
 //--
 function tail() {
     $args = func_get_args();
@@ -115,6 +118,15 @@ function args() {
     return $ret;
 }
 
+function sgra() { //-- обратная функция от args
+    $data = array_splice(debug_backtrace(), 0, 2); $index = 0; $limit = count($data[0]['args']);
+    while ($index++<$limit) {
+        $data[0]['args'][$index-1] = array_pop($data[1]['args']);
+    }
+    $data[0]['args'][] = $data[1]['args']; //-- прицепим хвост
+    return $data[0]['args'];
+}
+
 function _psi($arguments, $callback) {
     return new PSI ( function () use ($arguments, $callback) {
         return call_user_func_array($callback, $arguments);
@@ -126,12 +138,10 @@ function psy($PSI, $arguments = array()) {
 }
 
 function debug() {
-    if (_PSI_CORE_DEBUG_) {
-        if ($args = func_get_args()) {
-            foreach ($args as $value)  {
-                file_put_contents(_PSI_CORE_DEBUG_, now('now', 'd.m.Y h:i:s ') . "--\r\n" . (print_r ($value, true) ) . "\r\n", FILE_APPEND );
-            };
-        }
+    if ($args = func_get_args()) {
+        foreach ($args as $value)  {
+            file_put_contents('/tmp/' . $_SERVER['SERVER_NAME'] . '.log', now('now', 'd.m.Y h:i:s ') . "--\r\n" . (print_r ($value, true) ) . "\r\n", FILE_APPEND );
+        };
     }
 }
 

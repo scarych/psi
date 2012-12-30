@@ -1,39 +1,14 @@
 <?php
-/* тут тоже будет хороший класс PSI_Mail из предыдущей версии. Нечего отказываться от хорошего класса :) */
-
-
-
+//-- PSI_Mail
 class PSI_Mail extends PSI_Core {
-
-    static public $config = array('from'=>'PSI MAILER <mail@psifunction.com>', 'groups'=>array(), 'encoding'=>'utf-8');
-
-    private $_params = array(), $_html, $_headers, $_boundary, $_ = "\r\n";
-
-    /**
-     * @static
-     * @return PSI_Mail
-     */
-    static public function create() {
-        return new self();
-    }
-
-    public function __construct( ) {
-        $this->_params = array(
-            'to'=>array(),
-            'bcc'=>array(),
-            'cc'=>array(),
-            'from'=>static::$config['from'],
-            'subj'=>'',
-            'text'=>'',
-            'prior'=>1,
-            'files'=>array(),
-        );
-        $this->_headers = array();
-        $this->_html = null;
-        $this->_boundary = null;
-        parent::__construct(array_pop(func_get_args()));
-    }
-
+    protected
+        $_params = array( 'to'=>array(), 'bcc'=>array(), 'cc'=>array(), 'subj'=>'', 'text'=>'', 'prior'=>1, 'files'=>array(), ),
+        $_html = null,
+        $_headers = array(),
+        $_boundary = null,
+        $_ = "\r\n",
+        $_dual = 'mail'
+    ;
     /**
      * @param $field
      * @param $to
@@ -60,7 +35,7 @@ class PSI_Mail extends PSI_Core {
      * @return PSI_Mail|string
      */
     public function to($to = null, $replace = false) {
-        return $this->_addr('to', (isset(static::$config['groups'][$to]) ? static::$config['groups'][$to] : $to), $replace);
+        return $this->_addr('to', (isset(static::$_core->mail['groups'][$to]) ? static::$_core->mail['groups'][$to] : $to), $replace);
     }
     /**
      * Скрытая копия
@@ -167,7 +142,6 @@ class PSI_Mail extends PSI_Core {
         $this->_html = $yes;
         return $this;
     }
-
     protected function _parse($input) {
         //-- следует распарсить строку вида NAME <mail@addr.com> на array(NAME, mail@addr.com);
         preg_match('/.*\<(.*)\>/', $input, $matches);
@@ -198,7 +172,7 @@ class PSI_Mail extends PSI_Core {
             $this->_params['from'] = (is_array($this->_params['from']) ? $this->_params['from'] : $this->_parse($this->_params['from']));
             $this->_headers[] = "From: "
                 . ($from = ($this->_params['from']['from']
-                    ? '=?koi8-r?B?' . base64_encode(iconv(static::$config['encoding'], 'koi8-r', $this->_params['from']['from']))
+                    ? '=?koi8-r?B?' . base64_encode(iconv(static::$_core->mail['encoding'], 'koi8-r', $this->_params['from']['from']))
                     : '') . '?='
                     . ($this->_params['from']['mail'] ? ' <' . $this->_params['from']['mail'] . '>' : '')
                 );
@@ -212,24 +186,23 @@ class PSI_Mail extends PSI_Core {
         }
 
         if ($this->_boundary) { $this->_headers[] = '--' . $this->_boundary; }
-        $this->_headers[] = "Content-type:". ($this->_html ? 'text/html' : 'text/plain') ."; charset=". static::$config['encoding'] ;
+        $this->_headers[] = "Content-type:". ($this->_html ? 'text/html' : 'text/plain') ."; charset=". static::$_core->mail['encoding'] ;
         $this->_headers[] = "Content-Transfer-Encoding: base64" ;
 
         return $this->_headers;
     }
-    /**
-     * отправить почту
-     * @return bool
-     */
-
+    //-- компиляция почты
     protected function _compile() {
+        //-- последние проверки перед отправкой
+        if (empty($this->_params['from'])) {
+            $this->_params['from'] = static::$_core->mail['from'];
+        }
         $this->_html = (is_null($this->_html)
             ? (strlen(strip_tags($this->_params['text'])) != strlen($this->_params['text']))
             : $this->_html);
-
-        $_ = $this->_;
-
-        $headers = implode($_, $this->_headers());
+        ;
+        //-- сборка письма
+        $headers = implode($_ = $this->_, $this->_headers());
         $text = '';
         $text .= chunk_split(base64_encode($this->_params['text']));
         if ($this->_boundary && count($this->_params['file'])>0) {
@@ -247,35 +220,32 @@ class PSI_Mail extends PSI_Core {
             }
             $text .= '--' . $this->_boundary . '--';
         }
-
-        $this->_params['subj'] = '=?' . static::$config['encoding'] .'?B?' . base64_encode($this->_params['subj']) . '?=';
+        $this->_params['subj'] = '=?' . static::$_core->mail['encoding'] .'?B?' . base64_encode($this->_params['subj']) . '?=';
         return array(implode(', ', $this->_params['to']), $this->_params['subj'], $text, $headers);
     }
-
-    public function send () {
-        return call_user_func_array('mail', $this->__debug($this->_compile())) ;
+    //-- отправка сообщения функцией dual
+    public function send ($success=true, $error=false) {
+        return call_user_func_array($this(), $this->__xray($this->_compile())) ? $success : $error ;
     }
-
-    //-- toString добавлен специально, чтобы можно было сохранять отправляемое письмо в виде строки того или иного вида
-    public function __toString() {
-        return serialize($this($this)->_compile());
+    //-- определения
+    public function __invoke() {
+        if (count($arguments = func_get_args())) {
+            debug($arguments);
+            if (($arg = array_shift($arguments)) !== $this) {
+                $this->_dual = $arg;
+                return $this;
+            } else {
+                return parent::__invoke($this);
+            }
+        } else{
+            return $this->_dual;
+        }
     }
-
-
-    public function queue ($queue = _NULL_) {
-
-    }
-
 }
-
+//-- конфигуратор ядра
 return function () {
-    list($Core,  $args) =  tail(func_get_args(), null);
-    list($from, $groups, $encoding) =  tail($args, null, null, null);
-    if ($from) PSI_Mail::$config['from'] = $from;
-    if ($groups) PSI_Mail::$config['groups'] = $groups;
-    if ($encoding) PSI_Mail::$config['encoding'] = $encoding;
+    list($Core, $args) = sgra(null);
+    $Core->mail = (array_combine(array('from', 'groups', 'encoding', null), args($args, 'Psi() <psi@psifunc.ru>', array(), 'utf-8')));
     return $Core;
 }
-    ;
-
 ?>
