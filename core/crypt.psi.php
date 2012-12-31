@@ -1,15 +1,6 @@
 <?php
-/*
- PSI_Crypt тоже унаследуется из прошлой версии, в конфиге будет только соль устанавливаться и метод криптовки.
- */
-/*
- * Различные функции и методы шифрования
- * В алгоритмы я даже вдаваться не буду. Все взято из сети.
- * @author Kholstinnikov Grigoriy
- */
+//-- PSI_Crypt
 class PSI_Crypt extends PSI_Core {
-
-    static public $config = array('salt'=>'', 'method'=>'md5');
     /**
      * сгенерировать пароль plain (без шифровки)
      * @param string $input
@@ -17,14 +8,13 @@ class PSI_Crypt extends PSI_Core {
     static public function plain($input) {
         return $input;
     }
-
     /**
      * сгенерировать пароль с учетом системной соли и метода шифрования
      * @param $input
      * @return mixed
      */
     static public function passwd($input) {
-        list ($salt, $method) = array(static::$config['salt'], static::$config['method']);
+        list ($salt, $method) = array(static::$_core->crypt['salt'], static::$_core->crypt['method']);
         return self::$method($salt . $input);
     }
     /**
@@ -127,14 +117,10 @@ class PSI_Crypt extends PSI_Core {
         return bin2hex($crypt);
     }
 }
-
-/* а тут пускалка */
-return function() {
-    list($Core, $args) = tail(func_get_args(), null);
-    list ($salt, $method) = args($args, null, null);
-    if ($salt) { PSI_Crypt::$config['salt'] = $salt; }
-    if ($method) { PSI_Crypt::$config['method'] = $method; }
+//-- конфигуратор ядра
+return function () {
+    list($Core, $args) = sgra(null);
+    $Core->crypt = (array_combine(array('salt', 'method', null), args($args, $_SERVER['DOCUMENT_ROOT'], 'md5')));
     return $Core;
 }
-
 ?>

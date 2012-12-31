@@ -66,7 +66,7 @@ class PSI {
     }
     //-- создание Кванта присвоением
     public function __set($name, $value) {
-        $this->_quants[$name] = $value;
+        return $this->_quants[$name] = $value;
     }
     //-- возврат Кванта
     public function &__get($name) {
