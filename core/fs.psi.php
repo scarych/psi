@@ -19,15 +19,15 @@ class PSI_FS extends PSI_Core {
     }
 
     static public function dir($path) {
-        return self::one()->_dir(static::$config['root'] . $path);
+        return self::one()->_dir(static::$_core->fs . $path);
     }
 
     static public function file($path) {
-        return self::one()->_file(static::$config['root'] . $path);
+        return self::one()->_file(static::$_core->fs . $path);
     }
 
     static public function link($path) {
-        return self::one()->_link(static::$config['root'] . $path);
+        return self::one()->_link(static::$_core->fs . $path);
     }
 
     protected $_resources, $_resource, $_ident, $_pattern, $_objective;
@@ -474,7 +474,6 @@ class PSI_FS extends PSI_Core {
         return $result;
     }
 }
-
 /*
 
 Тут будет копия класса PSI_FS, потому что он получился удачным очень уж :)
@@ -484,9 +483,7 @@ class PSI_FS extends PSI_Core {
 
 /* а тут пускалка */
 return function($root=null, PSI_Core $Core) {
-    if ($root) PSI_FS::$config['root'] = $root;
-    //-- устанавливаем корневую директорию
-    //-- верну на всякий случай объект, авось пригодится ;)
+    $Core->fs = $root;
     return $Core;
 }
 

@@ -94,7 +94,6 @@ function now($date = null, $format = null, $strf = false) {
     $ret = (is_numeric($date) ? $date : strtotime($date));
     return (!$format ? $ret : ($strf ? strftime($format, $ret) : date($format, $ret)));
 }
-
 //--
 function tail() {
     $args = func_get_args();
@@ -106,7 +105,7 @@ function tail() {
     $ret[] = count($ret) < count($src) ? array_reverse(array_slice($src, count($ret))) : array();
     return $ret;
 }
-
+//--
 function args() {
     $args = func_get_args();
     $ret = array();
@@ -117,7 +116,7 @@ function args() {
     $ret[] = count($ret) < count($src) ? array_slice($src, count($ret)) : array();
     return $ret;
 }
-
+//--
 function sgra() { //-- обратная функция от args
     $data = array_splice(debug_backtrace(), 0, 2); $index = 0; $limit = count($data[0]['args']);
     while ($index++<$limit) {

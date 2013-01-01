@@ -62,6 +62,8 @@ class PSI_Env extends PSI_Core {
                                     } else {
                                         return null;
                                     }
+                                } else {
+                                    return null;
                                 }
                                 break;
 //                            case is_array($data): //--- тут попытка сохранить? пока не вижу, сейчас буду писать, увижу
