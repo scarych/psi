@@ -1,5 +1,297 @@
 <?php
+//-- PSI_DB
+class PSI_DB extends PSI_Core {
+    const _TYPE_SQL_ = 1;
+    const _TYPE_TABLE_ = 2;
 
+//    const _PARAM_INT_ = PDO::PARAM_INT;
+//    const _PARAM_STR_ = PDO::PARAM_STR;
+//    const _PARAM_BOOL_ = PDO::PARAM_BOOL;
+//    const _PARAM_DATETIME_ = 'datetime';
+//    const _PARAM_FLOAT_ = 'float';
+    const _PARAM_INT_ = 'integer';
+    const _PARAM_STR_ = 'string';
+    const _PARAM_BOOL_ = 'boolean';
+    const _PARAM_DATETIME_ = 'datetime';
+    const _PARAM_FLOAT_ = 'float';
+    /**
+     * @var PDO
+     */
+    protected $_pdo, $_tables = array();
+
+    public function __invoke() {
+        return $this;
+    }
+    /**
+     * Выполнить запрос или вернуть указатель на текущий PDO
+     * @param null|string $query
+     * @return PDO|PDOStatement
+     */
+    public function db($query = null, $pdo = true) {
+        if (!is_null($query)) {
+            $result = $this->_pdo->prepare($query, array(PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL));
+            $result->execute();
+            return $pdo ? $result : $this ;
+        } else {
+            return $this->_pdo;
+        }
+    }
+
+
+    public function shell($query = '') {
+        //-- тут будем создавать шелл на основе запроса, и это будет ахуеть как круто!
+    }
+    /**
+     * @param string $db
+     * @param string $server
+     * @param string $user
+     * @param string $pass
+     * @return PSI_DB
+     */
+    public function mysql($db = 'mysql', $server='localhost:3306', $user='mysql', $pass='mysql' ) {
+        try {
+            $this->_pdo = new PDO('mysql:dbname=' . $db  . ';server=' . $server .';', $user, $pass);
+        } catch( PDOException $Exception ) {
+            die ($Exception->getMessage());
+        }
+
+        if ($this->_pdo) {
+            /*
+            что мне нужно сделать сейчас?
+            1. Нужно подготовить структуру, и сделать доступным методы для каждой таблицы, для этого выгребаем составные из БД
+            */
+
+            //-- на самом деле мне следует сделать что-то типа ремакроса, который при первичном вызове одной из функций подвесит для нее
+
+//            $this->or(function() {  pr('oooor'); });
+//            $this->and(function() {  pr('aaaannnd!'); });
+//            $this->or();
+//            $this->and();
+
+            foreach ($this->_pdo->query('SHOW TABLES')->fetchAll() as $k=>$v) {
+                //-- на самом деле следует добавлять их чуть позже, ну да ладно
+                $this->_tables[array_pop($v)] = array('_filters'=>array(
+                    'status'=>function($table, PSI_Shell $Shell) {
+                        static $status = null;
+                        if (!$status) {
+                            $res = $Shell->db('SHOW TABLE STATUS LIKE \'' . $table .'\';')->fetchObject();
+                            $status = new PSI();
+                            $status
+                                ->count($res->Rows)
+                                ->comment($res->Comment)
+                                ->create($res->Create_time)
+                                ->update($res->Update_time)
+                            ;
+                        }
+                        return $status;
+                    },
+                    'fields'=>function($table, PSI_Shell $Shell) {
+                        static $_gettype;
+                        if (!$_gettype) { //-- инициализируем функцию для определения типов
+                            $_gettype = function ($type, $length=0) {
+                                switch ($type) {
+                                    case 'int': case 'smallint': case 'mediumint': case 'bigint': return PSI_DB::_PARAM_INT_;
+                                    case 'float': case 'double': case 'real': return PSI_DB::_PARAM_FLOAT_;
+                                    case 'tinyint': return $length>1 ? self::_PARAM_INT_ : PSI_DB::_PARAM_BOOL_;
+                                    case 'varbinary': case 'varchar': case 'char': return PSI_DB::_PARAM_STR_;
+                                    case 'text':case 'tinytext': case 'longtext': case 'mediumtext': return PSI_DB::_PARAM_STR_;
+                                    case 'datetime': case 'date': case 'time': case 'year': return PSI_DB::_PARAM_DATETIME_;
+                                }
+                                return $type; } ;
+                        }
+                        //--- сохраняем структуру
+                        //if (!isset($fields[$table])) {
+                        $fields = new PSI_DBAttrs(function(PSI_DBAttrs $Attrs) {return $Attrs;});
+
+                        foreach ($Shell->db('SHOW FULL COLUMNS FROM `' . $table .'`;')->fetchAll(PDO::FETCH_ASSOC) as $value) {
+                            //-- вот это магическая строка, я ее не рискую даже разбирать :-) Пусть останется такой
+                            list ($type, $length) = array(strtolower(substr($value['Type'], 0, ($tmp_pos = strpos( $value['Type'], '(')) ? $tmp_pos : strlen($value['Type']))), ($tmp_pos ? intval(substr($value['Type'], $tmp_pos+1)) : null));
+
+                            $fields->{$value['Field']}(
+                                $_type = call_user_func_array($_gettype, array($type, $length)),
+                                (($_type!='datetime')
+                                    ? $length
+                                    : (($type=='date')
+                                        ? 10
+                                        : ($type=='year' ? 4
+                                            : ( $type=='time' ? 8 : 32 ))
+                                    )
+                                ),
+                                $value['Default'],
+                                $value['Comment']
+                            );
+                        }
+                        //}
+                        return $fields;
+                        //return $Shell->db();
+                        //return new PSI_Shell($db->db('SHOW TABLE STATUS LIKE \'' . $table .'\';'), $db);
+                    },
+                    'query' => function (PSI_Shell $Shell, $new = array(), $current = array(), $select='*') {
+                        //-- будет генерировать запрос в контексте правильности порядка полей: фильтрация, экранирование и все-такие прочее :-)
+                        //-- по большому счету просто перенесу функции из предыдущего шелла
+
+                        //-- в зависимости от того, что пришло в $src
+                        //-- nul
+
+                        $generator = function($params = array(), $fields, $foo,  $prefix = '', $empty = true, $delimetr = 'AND') use ($Shell) {
+                            $return = array(); if (!is_array($fields)) $fields = $fields();
+                            if (!empty($params) && is_array($params)) {
+                                foreach ($params as $field=>$values) {
+                                    if (isset($fields[$field]) && $props = $fields[$field]) {
+                                        $field = '`' . $field . '`';
+                                        //-- тут погружение в окружение
+                                        if (is_array($values)) {
+                                            foreach ($values as $key=>$value) {
+                                                switch ($key) {
+                                                    case '-enum': //-- список или значение
+                                                        //-- если тут стоит конкретное значение, то возьмем его
+                                                        $return[] =
+                                                            $field .
+                                                                ( is_array($value)
+                                                                    ? ' IN ('. (implode(', ', $value)) . ')'
+                                                                    : ' = ' . $value )
+                                                        ;
+                                                        break;
+                                                    case '&': case '>': case '<': case '>=': case '=<': case '<=': case '<>': case '!=': //-- символы
+                                                    if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
+                                                        foreach ($value as $v) {
+                                                            $return[] = ($field . $key . $v);
+                                                        }
+                                                    } else {
+                                                        $return[] = ($field . $key . $value);
+                                                    }
+                                                    break;
+                                                    case '-between': //-- интервалы
+                                                        foreach ($value as $v) {
+                                                            $return[] = '( ' . ($field . ' BETWEEN ' . min($v) . ' AND ' . max($v)) . ' )';
+                                                        }
+                                                        break;
+                                                    case '~':   //-- обработка для LIKE
+                                                        if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
+                                                            foreach ($value as $v) {
+                                                                $return[] = '( ' . ($field . ' LIKE ' . $v ) . ' )';
+                                                            }
+                                                        } else {
+                                                            $return[] = '( ' . ($field . ' LIKE ' . $value ) . ' )';
+                                                        }
+                                                        break;
+                                                }
+                                            }
+                                        } else {
+                                            $return[] = ($field . '=' . array_shift($Shell->{$props->type()}($values)));
+                                        }
+
+                                    } else {
+                                        list($slice) = explode('-', $field);
+                                        if ($slice=='AND' || $slice=='OR') {
+                                            $return[] = '( ' . ($slice =='AND' ? ' TRUE ' : ' FALSE ') . ($foo($values, $fields, $foo, $slice)) . ' ) ';
+                                        } else {
+                                            //-- ничего не делать
+                                        }
+
+                                    }
+                                }
+                            }
+                            return ($return ? $prefix . ($empty ? ' ( ' : '') . implode(' '. $delimetr . ' ', $return ) . ($empty ? ' ) ' : '') : (intval(!$empty)));
+                        };
+                        switch (true) {
+                            case (empty($new) && empty($current)): //-- запрос на выборку
+                                $where = call_user_func_array($generator, array($Shell->param(), $Shell->fields(), $generator,  '', true, $Shell->delimetr()));
+                                $count = is_bool($new);
+                                return
+                                    ('SELECT ' . ($count ? 'COUNT(*)' : ($select?$select:'*')) .' FROM '
+                                        . '`'. $Shell->source() . '`'
+                                        . ($where ? ' WHERE ' . $where : '')
+                                        . (($order = $Shell->order()) ? ' ORDER BY ' . (implode(', ', $order)) : '')
+                                        . ($count ? '' : ($limit = $Shell->limit(null, true)) ? ' LIMIT ' . (implode(', ', $limit)) : '')
+                                    );
+                                break;
+                            case !empty($new) && empty($current): //-- запрос на вставку
+                                $new = call_user_func_array($generator, array($new, $Shell->fields(), $generator, '', false, ', '));
+                                return
+                                    'INSERT INTO ' . '`'. $Shell->source() . '`'
+                                    . ' SET ' . $new
+                                    ;
+                                break;
+                            case !empty($new) && !empty($current): //-- запрос на обновление
+                                $where = call_user_func_array($generator, array($current, $Shell->fields(), $generator));
+                                $new = call_user_func_array($generator, array($new, $Shell->fields(), $generator, '', false, ', '));
+                                return
+                                    'UPDATE ' . '`'. $Shell->source() . '`'
+                                    . ' SET ' . $new
+                                    . ' WHERE ' . $where;
+                                break;
+                            case empty($new) && !empty($current): //-- запрос на удаление
+                                $where = call_user_func_array($generator, array($current, $Shell->fields(), $generator));
+                                return
+                                    'DELETE FROM  ' . '`'. $Shell->source() . '`'
+                                    . ' WHERE ' . $where;
+                                break;
+                            default:
+
+                                break;
+                        }
+                        return null;
+                    }
+                ), '__call'=>null);
+            }
+        } else {
+            die ('cannot connect to database');
+        }
+        return $this;
+    }
+
+
+    public function __set($name, $value) {
+
+    }
+
+    //-- генератор оболочки, вынес в отдельный метод, может пригодиться
+    protected function _shell($name, $arguments) {
+        if (empty($this->_tables[$name]['__call'])) { //-- и для еще него не определен вызов
+            $filters = $this->_tables[$name]['_filters'];
+            $this->_tables[$name]['__call'] = //-- вызов в текущей месте - это функция
+                function () use ($name, $filters) {
+                    //pr (func_get_args());
+                    $shell = new PSI_Shell($name, array_pop(func_get_args()), PSI_DB::_TYPE_TABLE_,
+                        new PSI( function (PSI $Psi) use ($filters) {
+                            static $action = false;
+                            if (!$action) {
+                                $action = true;
+                                foreach ($filters as $filterName=>$filterFunction) { //-- обвесим ее фильтрами
+                                    // call_user_func_array($filterFunction, array($name, $shell));
+                                    $Psi->{$filterName} = $filterFunction;
+                                }
+                            }
+                            return $Psi;
+                        })
+                    ); //-- создадим собственную оболочку по таблице
+                    //$shell->complete();
+                    //-- пожалуй тут следует добавлять для шелла собственный вызов status, attrs и иже с ними
+                    //-- однозначно да
+                    $args = func_get_args();
+                    return
+                        !empty($args[0]) && is_callable($args[0])
+                            ? call_user_func_array($args[0], array($shell))
+                            : call_user_func_array($shell, $args)
+                        ;
+                };
+        }
+        return call_user_func_array($this->_tables[$name]['__call'], push($arguments, $this));
+    }
+
+    //-- изменим функционал _call для PSI_DB, ограничив его работой только с имеющимися таблицами
+    public function __call($name, $arguments=array(null)) {
+        if (isset($this->_tables[$name])) { //-- если имеющийся запрос есть в списке таблиц
+            return $this->_shell($name, $arguments);
+        } else {
+            return parent::__call($name, $arguments);
+            //return null; //-- + ошибка, что нельзя выполнить запрос (или же перевести его в разряд квантуемых?)
+        }
+    }
+}
+
+//--------------------
 class PSI_Shell extends PSI_Core {
     protected
         $_query = ''
@@ -852,292 +1144,6 @@ class PSI_DBAttrs extends PSI_Core {
 })
  */
 
-class PSI_DB extends PSI_Core {
-    const _TYPE_SQL_ = 1;
-    const _TYPE_TABLE_ = 2;
-
-//    const _PARAM_INT_ = PDO::PARAM_INT;
-//    const _PARAM_STR_ = PDO::PARAM_STR;
-//    const _PARAM_BOOL_ = PDO::PARAM_BOOL;
-//    const _PARAM_DATETIME_ = 'datetime';
-//    const _PARAM_FLOAT_ = 'float';
-    const _PARAM_INT_ = 'integer';
-    const _PARAM_STR_ = 'string';
-    const _PARAM_BOOL_ = 'boolean';
-    const _PARAM_DATETIME_ = 'datetime';
-    const _PARAM_FLOAT_ = 'float';
-    /**
-     * @var PDO
-     */
-    protected $_pdo, $_tables = array();
-
-    /**
-     * Выполнить запрос или вернуть указатель на текущий PDO
-     * @param null|string $query
-     * @return PDO|PDOStatement
-     */
-    public function db($query = null, $pdo = false) {
-        if (!is_null($query)) {
-            $result = $this->_pdo->prepare($query, array(PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL));
-            $result->execute();
-            return $pdo ? $this : $result;
-        } else {
-            return $this->_pdo;
-        }
-    }
-
-    public function shell($query = '') {
-        //-- тут будем создавать шелл на основе запроса, и это будет ахуеть как круто!
-    }
-    /**
-     * @param string $db
-     * @param string $server
-     * @param string $user
-     * @param string $pass
-     * @return PSI_DB
-     */
-    public function mysql($db = 'mysql', $server='localhost:3306', $user='mysql', $pass='mysql' ) {
-        try {
-            $this->_pdo = new PDO('mysql:dbname=' . $db  . ';server=' . $server .';', $user, $pass);
-        } catch( PDOException $Exception ) {
-            die ($Exception->getMessage());
-        }
-
-        if ($this->_pdo) {
-            /*
-            что мне нужно сделать сейчас?
-            1. Нужно подготовить структуру, и сделать доступным методы для каждой таблицы, для этого выгребаем составные из БД
-            */
-
-            //-- на самом деле мне следует сделать что-то типа ремакроса, который при первичном вызове одной из функций подвесит для нее
-
-//            $this->or(function() {  pr('oooor'); });
-//            $this->and(function() {  pr('aaaannnd!'); });
-//            $this->or();
-//            $this->and();
-
-            foreach ($this->_pdo->query('SHOW TABLES')->fetchAll() as $k=>$v) {
-                //-- на самом деле следует добавлять их чуть позже, ну да ладно
-                $this->_tables[array_pop($v)] = array('_filters'=>array(
-                    'status'=>function($table, PSI_Shell $Shell) {
-                        static $status = null;
-                        if (!$status) {
-                            $res = $Shell->db('SHOW TABLE STATUS LIKE \'' . $table .'\';')->fetchObject();
-                            $status = new PSI();
-                            $status
-                                ->count($res->Rows)
-                                ->comment($res->Comment)
-                                ->create($res->Create_time)
-                                ->update($res->Update_time)
-                                ;
-                        }
-                        return $status;
-                    },
-                    'fields'=>function($table, PSI_Shell $Shell) {
-                        static $_gettype;
-                        if (!$_gettype) { //-- инициализируем функцию для определения типов
-                            $_gettype = function ($type, $length=0) {
-                                switch ($type) {
-                                    case 'int': case 'smallint': case 'mediumint': case 'bigint': return PSI_DB::_PARAM_INT_;
-                                    case 'float': case 'double': case 'real': return PSI_DB::_PARAM_FLOAT_;
-                                    case 'tinyint': return $length>1 ? self::_PARAM_INT_ : PSI_DB::_PARAM_BOOL_;
-                                    case 'varbinary': case 'varchar': case 'char': return PSI_DB::_PARAM_STR_;
-                                    case 'text':case 'tinytext': case 'longtext': case 'mediumtext': return PSI_DB::_PARAM_STR_;
-                                    case 'datetime': case 'date': case 'time': case 'year': return PSI_DB::_PARAM_DATETIME_;
-                                }
-                                return $type; } ;
-                        }
-                        //--- сохраняем структуру
-                        //if (!isset($fields[$table])) {
-                            $fields = new PSI_DBAttrs(function(PSI_DBAttrs $Attrs) {return $Attrs;});
-
-                            foreach ($Shell->db('SHOW FULL COLUMNS FROM `' . $table .'`;')->fetchAll(PDO::FETCH_ASSOC) as $value) {
-                                //-- вот это магическая строка, я ее не рискую даже разбирать :-) Пусть останется такой
-                                list ($type, $length) = array(strtolower(substr($value['Type'], 0, ($tmp_pos = strpos( $value['Type'], '(')) ? $tmp_pos : strlen($value['Type']))), ($tmp_pos ? intval(substr($value['Type'], $tmp_pos+1)) : null));
-
-                                $fields->{$value['Field']}(
-                                    $_type = call_user_func_array($_gettype, array($type, $length)),
-                                    (($_type!='datetime')
-                                        ? $length
-                                        : (($type=='date')
-                                            ? 10
-                                            : ($type=='year' ? 4
-                                                : ( $type=='time' ? 8 : 32 ))
-                                        )
-                                    ),
-                                    $value['Default'],
-                                    $value['Comment']
-                                );
-                            }
-                        //}
-                        return $fields;
-                        //return $Shell->db();
-                        //return new PSI_Shell($db->db('SHOW TABLE STATUS LIKE \'' . $table .'\';'), $db);
-                    },
-                    'query' => function (PSI_Shell $Shell, $new = array(), $current = array(), $select='*') {
-                        //-- будет генерировать запрос в контексте правильности порядка полей: фильтрация, экранирование и все-такие прочее :-)
-                        //-- по большому счету просто перенесу функции из предыдущего шелла
-
-                        //-- в зависимости от того, что пришло в $src
-                        //-- nul
-
-                        $generator = function($params = array(), $fields, $foo,  $prefix = '', $empty = true, $delimetr = 'AND') use ($Shell) {
-                            $return = array(); if (!is_array($fields)) $fields = $fields();
-                            if (!empty($params) && is_array($params)) {
-                                foreach ($params as $field=>$values) {
-                                    if (isset($fields[$field]) && $props = $fields[$field]) {
-                                        $field = '`' . $field . '`';
-                                        //-- тут погружение в окружение
-                                        if (is_array($values)) {
-                                            foreach ($values as $key=>$value) {
-                                                switch ($key) {
-                                                    case '-enum': //-- список или значение
-                                                        //-- если тут стоит конкретное значение, то возьмем его
-                                                        $return[] =
-                                                            $field .
-                                                                ( is_array($value)
-                                                                    ? ' IN ('. (implode(', ', $value)) . ')'
-                                                                    : ' = ' . $value )
-                                                        ;
-                                                        break;
-                                                    case '&': case '>': case '<': case '>=': case '=<': case '<=': case '<>': case '!=': //-- символы
-                                                    if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
-                                                        foreach ($value as $v) {
-                                                            $return[] = ($field . $key . $v);
-                                                        }
-                                                    } else {
-                                                        $return[] = ($field . $key . $value);
-                                                    }
-                                                    break;
-                                                    case '-between': //-- интервалы
-                                                        foreach ($value as $v) {
-                                                            $return[] = '( ' . ($field . ' BETWEEN ' . min($v) . ' AND ' . max($v)) . ' )';
-                                                        }
-                                                        break;
-                                                    case '~':   //-- обработка для LIKE
-                                                        if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
-                                                            foreach ($value as $v) {
-                                                                $return[] = '( ' . ($field . ' LIKE ' . $v ) . ' )';
-                                                            }
-                                                        } else {
-                                                            $return[] = '( ' . ($field . ' LIKE ' . $value ) . ' )';
-                                                        }
-                                                        break;
-                                                }
-                                            }
-                                        } else {
-                                            $return[] = ($field . '=' . array_shift($Shell->{$props->type()}($values)));
-                                        }
-
-                                    } else {
-                                        list($slice) = explode('-', $field);
-                                        if ($slice=='AND' || $slice=='OR') {
-                                            $return[] = '( ' . ($slice =='AND' ? ' TRUE ' : ' FALSE ') . ($foo($values, $fields, $foo, $slice)) . ' ) ';
-                                        } else {
-                                            //-- ничего не делать
-                                        }
-
-                                    }
-                                }
-                            }
-                            return ($return ? $prefix . ($empty ? ' ( ' : '') . implode(' '. $delimetr . ' ', $return ) . ($empty ? ' ) ' : '') : (intval(!$empty)));
-                        };
-                        switch (true) {
-                            case (empty($new) && empty($current)): //-- запрос на выборку
-                                $where = call_user_func_array($generator, array($Shell->param(), $Shell->fields(), $generator,  '', true, $Shell->delimetr()));
-                                $count = is_bool($new);
-                                return
-                                    ('SELECT ' . ($count ? 'COUNT(*)' : ($select?$select:'*')) .' FROM '
-                                    . '`'. $Shell->source() . '`'
-                                    . ($where ? ' WHERE ' . $where : '')
-                                    . (($order = $Shell->order()) ? ' ORDER BY ' . (implode(', ', $order)) : '')
-                                    . ($count ? '' : ($limit = $Shell->limit(null, true)) ? ' LIMIT ' . (implode(', ', $limit)) : '')
-                                );
-                                break;
-                            case !empty($new) && empty($current): //-- запрос на вставку
-                                $new = call_user_func_array($generator, array($new, $Shell->fields(), $generator, '', false, ', '));
-                                return
-                                    'INSERT INTO ' . '`'. $Shell->source() . '`'
-                                    . ' SET ' . $new
-                                    ;
-                                break;
-                            case !empty($new) && !empty($current): //-- запрос на обновление
-                                $where = call_user_func_array($generator, array($current, $Shell->fields(), $generator));
-                                $new = call_user_func_array($generator, array($new, $Shell->fields(), $generator, '', false, ', '));
-                                return
-                                    'UPDATE ' . '`'. $Shell->source() . '`'
-                                    . ' SET ' . $new
-                                    . ' WHERE ' . $where;
-                                break;
-                            case empty($new) && !empty($current): //-- запрос на удаление
-                                $where = call_user_func_array($generator, array($current, $Shell->fields(), $generator));
-                                return
-                                    'DELETE FROM  ' . '`'. $Shell->source() . '`'
-                                    . ' WHERE ' . $where;
-                                break;
-                            default:
-
-                                break;
-                        }
-                        return null;
-                    }
-                ), '__call'=>null);
-            }
-        } else {
-            die ('cannot connect to database');
-        }
-        return $this;
-    }
-
-
-    public function __set($name, $value) {
-
-    }
-
-    //-- генератор оболочки, вынес в отдельный метод, может пригодиться
-    protected function _shell($name, $arguments) {
-        if (empty($this->_tables[$name]['__call'])) { //-- и для еще него не определен вызов
-            $filters = $this->_tables[$name]['_filters'];
-            $this->_tables[$name]['__call'] = //-- вызов в текущей месте - это функция
-                function () use ($name, $filters) {
-                    //pr (func_get_args());
-                    $shell = new PSI_Shell($name, array_pop(func_get_args()), PSI_DB::_TYPE_TABLE_,
-                        new PSI( function (PSI $Psi) use ($filters) {
-                            static $action = false;
-                            if (!$action) {
-                                $action = true;
-                                foreach ($filters as $filterName=>$filterFunction) { //-- обвесим ее фильтрами
-                                    // call_user_func_array($filterFunction, array($name, $shell));
-                                    $Psi->{$filterName} = $filterFunction;
-                                }
-                            }
-                            return $Psi;
-                        })
-                    ); //-- создадим собственную оболочку по таблице
-                    //$shell->complete();
-                    //-- пожалуй тут следует добавлять для шелла собственный вызов status, attrs и иже с ними
-                    //-- однозначно да
-                    $args = func_get_args();
-                    return
-                        !empty($args[0]) && is_callable($args[0])
-                        ? call_user_func_array($args[0], array($shell))
-                        : call_user_func_array($shell, $args)
-                        ;
-                };
-        }
-        return call_user_func_array($this->_tables[$name]['__call'], push($arguments, $this));
-    }
-
-    //-- изменим функционал _call для PSI_DB, ограничив его работой только с имеющимися таблицами
-    public function __call($name, $arguments=array(null)) {
-        if (isset($this->_tables[$name])) { //-- если имеющийся запрос есть в списке таблиц
-            return $this->_shell($name, $arguments);
-        } else {
-            return parent::__call($name, $arguments);
-            //return null; //-- + ошибка, что нельзя выполнить запрос (или же перевести его в разряд квантуемых?)
-        }
-    }
-}
 
 /*
  Теперь немного о том, как будут выглядеть вызовы классов для оболочек.
@@ -1161,8 +1167,9 @@ class PSI_DB extends PSI_Core {
 
 */
 
-return function ($procedure) {
-    return call_user_func_array($procedure, array(new PSI_DB()));
+return function ($procedure, $Core) {
+    call_user_func_array($procedure, array(new PSI_DB()));
+    return $Core;
 }
 
 ?>
