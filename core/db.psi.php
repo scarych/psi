@@ -20,7 +20,11 @@ class PSI_DB extends PSI_Core {
     protected $_pdo, $_tables = array();
 
     public function __invoke() {
-        return $this;
+        if (count($arguments = func_get_args())) {
+            return $this->db($arguments[0], !empty($arguments[1]));
+        } else {
+            return $this;
+        }
     }
     /**
      * Выполнить запрос или вернуть указатель на текущий PDO
