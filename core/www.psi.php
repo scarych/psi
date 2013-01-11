@@ -65,6 +65,7 @@ class PSI_Www extends PSI_Core {
     protected function _skip($url, $atom, $default) {
         array_unshift($this->_url, $url);
         $this->skip(false); //-- сбросим его тут же (это будет очень локальная опция)
+        debug($default);
         return (is_closure($default) ? call_user_func_array($default, array($atom))  : $default);
     }
     //-- индикация строкового запроса
@@ -298,6 +299,11 @@ class PSI_Atom extends PSI {
     }
 }
 
+/**
+ * @param $Object
+ * @param null $Default
+ * @return mixed|PSI_Www
+ */
 function PSI_Www($Object, $Default = null) {
     return is_null($Default) ? call_user_func($Object) : call_user_func($Object, $Default);
 }

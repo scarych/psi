@@ -170,6 +170,9 @@ class PSI_DB extends PSI_Core {
                                                             $return[] = '( ' . ($field . ' BETWEEN ' . min($v) . ' AND ' . max($v)) . ' )';
                                                         }
                                                         break;
+                                                    case '-connect': //-- интервалы
+                                                        $return[] = '( ' . $field . ' IN (' . $value . ') )';
+                                                        break;
                                                     case '~':   //-- обработка для LIKE
                                                         if (is_array($value)) { //-- если на входе массив, то проставим каждую пендюрку
                                                             foreach ($value as $v) {
@@ -526,6 +529,7 @@ class PSI_Shell extends PSI_Core {
         }
     }
 
+
     public function blank() {
         $last = $this();
         $current = 1 + (string) $last;
@@ -643,6 +647,18 @@ class PSI_Shell extends PSI_Core {
         //-- только собираться параметры будут локальными функциями сборки внутри БД
         return $this;
     }
+
+    public function connect($field, PSI_Shell $Shell) {
+        if ($Field = $this->fields()->{$field}) {
+            $this->_params[$field] = array_merge_recursive(
+                (isset($this->_params[$field]) ? $this->_params[$field] : array()),
+                array('-connect'=>$Shell->query($field))
+            );
+        }
+
+        return $this;
+    }
+
 
     //-- задать интервал
     public function between($field, $from, $to) {
@@ -956,8 +972,8 @@ class PSI_Shell extends PSI_Core {
     }
 
     //-- возвращает запрос, который был/есть будет сгенерирован для требуемого состояния оболочки (по умолчанию: выборка)
-    public function query() {
-        return $this->_ego->query($this, null, null, null);
+    public function query($field = null) {
+        return $this->_ego->query($this, null, null, $field);
     }
 
 
